@@ -1,92 +1,126 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-    Table, TableBody, TableCell, TableContainer,
-    TableHead, TableRow, Paper, TextField, Container,
-    Typography, CircularProgress, Box, TableSortLabel,
-    TablePagination, FormControl, InputLabel, Select, MenuItem
+    Box,
+    CircularProgress,
+    Container,
+    FormControl,
+    InputLabel,
+    MenuItem,
+    Paper,
+    Select,
+    SelectChangeEvent,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TablePagination,
+    TableRow,
+    TableSortLabel,
+    TextField,
+    Typography,
 } from '@mui/material';
-import { useAppDispatch } from '../../../hooks/useAppDispatch.ts';
-import { useAppSelector } from '../../../hooks/useAppSelector.ts';
-import { fetchStudents } from '../studentSlice.ts';
+import { useAppDispatch } from '../../../hooks/useAppDispatch';
+import { useAppSelector } from '../../../hooks/useAppSelector';
+import { fetchStudents } from '../studentSlice';
 import { useNavigate } from 'react-router-dom';
+
+type SortOrder = 'asc' | 'desc';
+type Student = ReturnType<typeof fetchStudents> extends any ? any : any; // adjust if you have a Student type
+
+const labels: Record<string, string> = {
+    surname: 'Фамилия',
+    name: 'Имя',
+    patronymic: 'Отчество',
+    phone: 'Телефон',
+    yearStarted: 'Год поступления',
+    financialForm: 'Форма обучения',
+};
+
+const financialOptions = [
+    { value: 'ALL', label: 'Все' },
+    { value: 'BUDGET', label: 'Бюджет' },
+    { value: 'CONTRACT', label: 'Контракт' },
+];
+
+const columns: { field: keyof any; labelKey: string }[] = [
+    { field: 'surname', labelKey: 'surname' },
+    { field: 'name', labelKey: 'name' },
+    { field: 'patronymic', labelKey: 'patronymic' },
+    { field: 'phone', labelKey: 'phone' },
+    { field: 'yearStarted', labelKey: 'yearStarted' },
+    { field: 'financialForm', labelKey: 'financialForm' },
+];
 
 const StudentTable: React.FC = () => {
     const dispatch = useAppDispatch();
-    const { students, status } = useAppSelector(state => state.students);
+    const { students, status } = useAppSelector((s) => s.students);
+    const navigate = useNavigate();
+
     const [search, setSearch] = useState('');
-    const [sortBy, setSortBy] = useState<keyof string>("surname");
-    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+    const [filter, setFilter] = useState('ALL');
+    const [sortBy, setSortBy] = useState<keyof any>('surname');
+    const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
-    const [financialFormFilter, setFinancialFormFilter] = useState('ALL');
-
-    const navigate = useNavigate();
 
     useEffect(() => {
         dispatch(fetchStudents());
     }, [dispatch]);
 
-    const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Handlers
+    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
         setSearch(e.target.value);
         setPage(0);
     };
-
+    const handleFilter = (e: SelectChangeEvent) => {
+        setFilter(e.target.value);
+        setPage(0);
+    };
     const handleSort = (field: keyof any) => {
         if (sortBy === field) {
-            setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'));
+            setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'));
         } else {
             setSortBy(field);
             setSortOrder('asc');
         }
     };
-
-    const handlePageChange = (_: unknown, newPage: number) => {
-        setPage(newPage);
-    };
-
-    const handleRowsPerPageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleChangePage = (_: unknown, newPage: number) => setPage(newPage);
+    const handleChangeRows = (e: React.ChangeEvent<HTMLInputElement>) => {
         setRowsPerPage(parseInt(e.target.value, 10));
         setPage(0);
     };
 
-    const handleFilterChange = (e: React.ChangeEvent<{ value: unknown }>) => {
-        setFinancialFormFilter(e.target.value as string);
-        setPage(0);
-    };
-
-    const filteredStudents = useMemo(() => {
-        return students.filter(student => {
-            const { surname, name, patronymic } = student.person;
-            const searchLower = search.toLowerCase();
-            const matchesSearch =
-                surname.toLowerCase().includes(searchLower) ||
-                name.toLowerCase().includes(searchLower) ||
-                patronymic.toLowerCase().includes(searchLower);
-
-            const matchesForm =
-                financialFormFilter === 'ALL' || student.financialForm === financialFormFilter;
-
-            return matchesSearch && matchesForm;
+    // Data transformations
+    const filtered = useMemo(() => {
+        const txt = search.toLowerCase();
+        return students.filter((st) => {
+            const { surname, name, patronymic } = st.person;
+            const matchTxt =
+                surname.toLowerCase().includes(txt) ||
+                name.toLowerCase().includes(txt) ||
+                patronymic.toLowerCase().includes(txt);
+            const matchFilter = filter === 'ALL' || st.financialForm === filter;
+            return matchTxt && matchFilter;
         });
-    }, [students, search, financialFormFilter]);
+    }, [students, search, filter]);
 
-    const sortedStudents = useMemo(() => {
-        return [...filteredStudents].sort((a, b) => {
-            const aField = a.person[sortBy as keyof typeof a.person];
-            const bField = b.person[sortBy as keyof typeof b.person];
-            const aVal = typeof aField === 'string' ? aField.toLowerCase() : aField;
-            const bVal = typeof bField === 'string' ? bField.toLowerCase() : bField;
-
-            if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
-            if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+    const sorted = useMemo(() => {
+        return [...filtered].sort((a, b) => {
+            const aVal = a.person[sortBy] ?? a[sortBy];
+            const bVal = b.person[sortBy] ?? b[sortBy];
+            const va = typeof aVal === 'string' ? aVal.toLowerCase() : aVal;
+            const vb = typeof bVal === 'string' ? bVal.toLowerCase() : bVal;
+            if (va < vb) return sortOrder === 'asc' ? -1 : 1;
+            if (va > vb) return sortOrder === 'asc' ? 1 : -1;
             return 0;
         });
-    }, [filteredStudents, sortBy, sortOrder]);
+    }, [filtered, sortBy, sortOrder]);
 
-    const paginatedStudents = useMemo(() => {
+    const paginated = useMemo(() => {
         const start = page * rowsPerPage;
-        return sortedStudents.slice(start, start + rowsPerPage);
-    }, [sortedStudents, page, rowsPerPage]);
+        return sorted.slice(start, start + rowsPerPage);
+    }, [sorted, page, rowsPerPage]);
 
     if (status === 'loading') {
         return (
@@ -98,90 +132,87 @@ const StudentTable: React.FC = () => {
 
     return (
         <Container sx={{ mt: 4 }}>
-            <TextField
-                label="Поиск по фамилии, имени или отчеству"
-                variant="outlined"
-                fullWidth
-                margin="normal"
-                value={search}
-                onChange={handleSearchChange}
-            />
+            <Typography variant="h5" gutterBottom>
+                Список студентов
+            </Typography>
 
-            <FormControl fullWidth margin="normal">
-                <InputLabel>Форма обучения</InputLabel>
-                <Select
-                    value={financialFormFilter}
-                    label="Форма обучения"
-                    onChange={handleFilterChange}
-                >
-                    <MenuItem value="ALL">Все</MenuItem>
-                    <MenuItem value="BUDGET">Бюджет</MenuItem>
-                    <MenuItem value="CONTRACT">Контракт</MenuItem>
-                </Select>
-            </FormControl>
-
-            <TableContainer component={Paper}>
-                <Table>
-                    <TableHead>
-                        <TableRow>
-                            {['surname', 'name', 'patronymic'].map((field) => (
-                                <TableCell key={field}>
-                                    <TableSortLabel
-                                        active={sortBy === field}
-                                        direction={sortOrder}
-                                        onClick={() => handleSort(field)}
-                                    >
-                                        {({
-                                            surname: 'Фамилия',
-                                            name: 'Имя',
-                                            patronymic: 'Отчество'
-                                        } as Record<string, string>)[field]}
-                                    </TableSortLabel>
-                                </TableCell>
-                            ))}
-                            <TableCell>Телефон</TableCell>
-                            <TableCell>Год поступления</TableCell>
-                            <TableCell>Форма обучения</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {paginatedStudents.map(student => (
-                            <TableRow
-                                key={student.id}
-                                hover
-                                sx={{ cursor: 'pointer' }}
-                                onClick={() => navigate(`/students/${student.id}`)}
-                            >
-                                <TableCell>{student.person.surname}</TableCell>
-                                <TableCell>{student.person.name}</TableCell>
-                                <TableCell>{student.person.patronymic}</TableCell>
-                                <TableCell>{student.person.phone}</TableCell>
-                                <TableCell>{student.yearStarted}</TableCell>
-                                <TableCell>
-                                    {student.financialForm === 'BUDGET' ? 'Бюджет' : 'Контракт'}
-                                </TableCell>
-                            </TableRow>
+            <Box display="flex" gap={2} flexWrap="wrap" mb={2}>
+                <TextField
+                    label="Поиск"
+                    variant="outlined"
+                    value={search}
+                    onChange={handleSearch}
+                />
+                <FormControl sx={{ minWidth: 160 }}>
+                    <InputLabel>Форма обучения</InputLabel>
+                    <Select value={filter} label="Форма обучения" onChange={handleFilter}>
+                        {financialOptions.map((opt) => (
+                            <MenuItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                            </MenuItem>
                         ))}
-                        {paginatedStudents.length === 0 && (
-                            <TableRow>
-                                <TableCell colSpan={6} align="center">
-                                    Студенты не найдены
-                                </TableCell>
-                            </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
-            </TableContainer>
+                    </Select>
+                </FormControl>
+            </Box>
 
-            <TablePagination
-                component="div"
-                count={sortedStudents.length}
-                page={page}
-                onPageChange={handlePageChange}
-                rowsPerPage={rowsPerPage}
-                onRowsPerPageChange={handleRowsPerPageChange}
-                rowsPerPageOptions={[5, 10, 25]}
-            />
+            <Paper>
+                <TableContainer>
+                    <Table>
+                        <TableHead>
+                            <TableRow>
+                                {columns.map(({ field, labelKey }) => (
+                                    <TableCell key={field}>
+                                        <TableSortLabel
+                                            active={sortBy === field}
+                                            direction={sortOrder}
+                                            onClick={() => handleSort(field)}
+                                        >
+                                            {labels[labelKey]}
+                                        </TableSortLabel>
+                                    </TableCell>
+                                ))}
+                            </TableRow>
+                        </TableHead>
+
+                        <TableBody>
+                            {paginated.map((st) => (
+                                <TableRow
+                                    key={st.id}
+                                    hover
+                                    sx={{ cursor: 'pointer' }}
+                                    onClick={() => navigate(`/students/${st.id}`)}
+                                >
+                                    {columns.map(({ field }) => (
+                                        <TableCell key={field}>
+                                            {field === 'financialForm'
+                                                ? labels[st.financialForm.toLowerCase()]
+                                                : st.person[field] ?? st[field]}
+                                        </TableCell>
+                                    ))}
+                                </TableRow>
+                            ))}
+
+                            {paginated.length === 0 && (
+                                <TableRow>
+                                    <TableCell colSpan={columns.length} align="center">
+                                        Студенты не найдены
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
+
+                <TablePagination
+                    component="div"
+                    count={sorted.length}
+                    page={page}
+                    onPageChange={handleChangePage}
+                    rowsPerPage={rowsPerPage}
+                    onRowsPerPageChange={handleChangeRows}
+                    rowsPerPageOptions={[5, 10, 25]}
+                />
+            </Paper>
         </Container>
     );
 };
