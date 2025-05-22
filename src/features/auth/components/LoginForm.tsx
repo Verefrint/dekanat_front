@@ -31,7 +31,7 @@ export default function LoginForm() {
         try {
             const resultAction = await dispatch(login({ email, password }));
             if (login.fulfilled.match(resultAction)) {
-                navigate('/'); // Changed from '/students'
+                navigate('/');
             }
         } finally {
             setIsLoading(false);

@@ -26,10 +26,13 @@ export const login = createAsyncThunk<LoginResponse, { email: string; password: 
                 withCredentials: true,
             });
 
-            const roles = meResponse.data.map((role: { authority: string }) => role.authority) || [];
+            const roles = Array.isArray(meResponse.data) 
+                ? meResponse.data.map((role: { authority: string }) => role.authority)
+                : meResponse.data.roles || [];
 
             const userWithroles: IUser = {
                 ...response.data.user,
+                email: userData.email, 
                 roles,
             };
 
