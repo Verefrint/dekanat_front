@@ -1,5 +1,9 @@
+/* ───────────────────────── StudentFormPage.tsx ───────────────────────── */
+/* Drop-in replacement – paste over the current file                       */
+
 import React, { useEffect, useState } from 'react';
 import {
+    Alert,
     Box,
     Button,
     Card,
@@ -27,6 +31,22 @@ import {
 } from '../studentSlice';
 import { Student } from '../../../types/people';
 
+/* ───────── helper: extract readable message from ANY error ────────── */
+const getErrorMessage = (err: unknown): string => {
+    if (typeof err === 'string') return err;
+
+    if (err && typeof err === 'object') {
+        const e = err as any;
+        return (
+            e.message ??
+            e.data?.message ??
+            e.response?.data?.message ??
+            JSON.stringify(e)
+        );
+    }
+    return 'Неизвестная ошибка';
+};
+
 /* ─────────────────────────── constants ─────────────────────────── */
 const currentYear = new Date().getFullYear();
 const initialForm: Omit<Student, 'id'> = {
@@ -40,11 +60,13 @@ const financialOptions = [
 ];
 
 /* ─────────────────────────── types ─────────────────────────────── */
-type FormField = keyof typeof initialForm.person | 'yearStarted' | 'financialForm';
-
+type FormField =
+    | keyof typeof initialForm.person
+    | 'yearStarted'
+    | 'financialForm';
 type FormErrors = Partial<Record<FormField, string>>;
 
-/* ──────────────────────── component ────────────────────────────── */
+/* ───────────────────────── component ────────────────────────────── */
 const StudentFormPage: React.FC = () => {
     /* hooks & store */
     const { id } = useParams<{ id?: string }>();
@@ -53,7 +75,9 @@ const StudentFormPage: React.FC = () => {
 
     const navigate = useNavigate();
     const dispatch = useAppDispatch();
-    const { selectedStudent, students, status } = useAppSelector(s => s.students);
+    const { selectedStudent, students, status } = useAppSelector(
+        s => s.students
+    );
 
     /* local state */
     const [data, setData] = useState(initialForm);
@@ -62,9 +86,11 @@ const StudentFormPage: React.FC = () => {
     const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
     const [deleteError, setDeleteError] = useState<string | null>(null);
 
-    /* side‑effects */
+    /* side-effects */
     useEffect(() => {
-        if (isEdit && studentId !== null) dispatch(fetchStudentById(studentId));
+        if (isEdit && studentId !== null) {
+            dispatch(fetchStudentById(studentId));
+        }
     }, [dispatch, isEdit, studentId]);
 
     useEffect(() => {
@@ -88,7 +114,8 @@ const StudentFormPage: React.FC = () => {
         if (!patronymic.trim()) e.patronymic = 'Отчество обязательно';
 
         if (!phone.trim()) e.phone = 'Телефон обязателен';
-        else if (!/^\+\d{5,15}$/.test(phone)) e.phone = 'Формат: + и 5–15 цифр';
+        else if (!/^\+\d{5,15}$/.test(phone))
+            e.phone = 'Формат: + и 5–15 цифр';
 
         if (!year || !Number.isInteger(year)) e.yearStarted = 'Неверный год';
         else if (year < 2000 || year > currentYear)
@@ -99,7 +126,7 @@ const StudentFormPage: React.FC = () => {
         return e;
     };
 
-    /* handlers */
+    /* field change */
     const onField = (field: FormField, value: string | number) => {
         setErrors(p => ({ ...p, [field]: undefined }));
         setServerError(null);
@@ -111,6 +138,7 @@ const StudentFormPage: React.FC = () => {
         }
     };
 
+    /* submit */
     const onSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const validation = validate();
@@ -124,21 +152,22 @@ const StudentFormPage: React.FC = () => {
                 await dispatch(createStudent(data)).unwrap();
             }
             navigate('/students');
-        } catch (err: any) {
-            const msg = String(err ?? '');
+        } catch (err) {
+            const msg = getErrorMessage(err);
             setServerError(
                 msg.includes('duplicate') ? 'Студент с таким годом уже есть' : msg
             );
         }
     };
 
+    /* delete */
     const onDelete = async () => {
         if (studentId === null) return;
         try {
             await dispatch(deleteStudent(studentId)).unwrap();
             navigate('/students');
-        } catch (err: any) {
-            setDeleteError(String(err ?? 'Ошибка удаления'));
+        } catch (err) {
+            setDeleteError(getErrorMessage(err));
         }
     };
 
@@ -170,7 +199,6 @@ const StudentFormPage: React.FC = () => {
                     position: 'absolute',
                     inset: 0,
                     background: 'linear-gradient(120deg,#dfe9f3 0%,#ffffff 100%)',
-                    backgroundSize: 'cover',
                     filter: 'blur(8px)',
                     transform: 'scale(1.1)',
                     zIndex: -1
@@ -260,9 +288,9 @@ const StudentFormPage: React.FC = () => {
 
                         {/* server error */}
                         {serverError && (
-                            <Typography color="error" mt={1}>
+                            <Alert severity="error" sx={{ mt: 2 }}>
                                 {serverError}
-                            </Typography>
+                            </Alert>
                         )}
 
                         {/* action buttons */}
@@ -285,16 +313,20 @@ const StudentFormPage: React.FC = () => {
             </motion.div>
 
             {/* delete confirmation dialog */}
-            <Dialog open={confirmDeleteOpen} onClose={() => setConfirmDeleteOpen(false)}>
+            <Dialog
+                open={confirmDeleteOpen}
+                onClose={() => setConfirmDeleteOpen(false)}
+            >
                 <DialogTitle>Подтвердите удаление</DialogTitle>
                 <DialogContent>
                     <DialogContentText>
-                        Вы уверены, что хотите удалить этого студента? Это действие не обратимо.
+                        Вы уверены, что хотите удалить этого студента? Это действие не
+                        обратимо.
                     </DialogContentText>
                     {deleteError && (
-                        <Typography color="error" mt={1}>
+                        <Alert severity="error" sx={{ mt: 2 }}>
                             {deleteError}
-                        </Typography>
+                        </Alert>
                     )}
                 </DialogContent>
                 <DialogActions>
