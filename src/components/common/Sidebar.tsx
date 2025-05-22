@@ -201,12 +201,3 @@ const Sidebar: React.FC<SidebarProps> = ({ items, width = 250 }) => {
 };
 
 export default Sidebar;
-
-
-echo "# dekanat_front" >> README.md
-git init
-git add .
-git commit -m "first commit"
-git branch -M main
-git remote add origin https://github.com/Verefrint/dekanat_front.git
-git push -u origin main
