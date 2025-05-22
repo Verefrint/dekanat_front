@@ -339,7 +339,7 @@ const Sidebar: React.FC<SidebarProps> = ({ items, width = 260 }) => {
               py: 1,
             }}
           >
-            Sign In
+            Войти
           </Button>
         )}
       </Box>
