@@ -20,13 +20,7 @@ const InstituteAdminPage: React.FC = () => {
         mb={2}
       >
         <Typography variant="h4">Управление институтом</Typography>
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={handleAddInstitute}
-        >
-          Добавить институт
-        </Button>
+
       </Box>
       <InstituteTable />
     </div>

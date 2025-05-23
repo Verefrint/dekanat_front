@@ -1,25 +1,21 @@
-import { useNavigate } from "react-router-dom";
-import KafedraTable from "../components/KafedraTable";
-import {Box, Button, Typography} from "@mui/material";
+/* --------------------------------------------------------------------
+   KafedraListPage.tsx – lean page that only shows the table
+   ------------------------------------------------------------------ */
 
+import React from 'react';
+import { Box, Typography } from '@mui/material';
+import KafedraTable from '../components/KafedraTable';
 
-const KafedraListPage = () => {
-    const navigate = useNavigate();
+const KafedraListPage: React.FC = () => (
+    <Box>
+        {/* top heading kept for consistency with other sections */}
+        <Typography variant="h3" mb={4}>
+            Кафедры
+        </Typography>
 
-    const handleAddKafedra = () => {
-        navigate("/kafedras/create");
-    };
-
-
-    return <div>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-            <Typography variant="h4">Кафедры</Typography>
-            <Button variant="contained" color="primary" onClick={handleAddKafedra}>
-                Добавить кафедру
-            </Button>
-        </Box>
+        {/* the table now contains its own “Добавить кафедру” button */}
         <KafedraTable />
-    </div>;
-};
+    </Box>
+);
 
 export default KafedraListPage;

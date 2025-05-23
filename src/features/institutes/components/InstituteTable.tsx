@@ -1,14 +1,10 @@
-// src/features/institutes/components/InstituteTable.tsx
+/* --------------------------------------------------------------------
+   InstituteTable.tsx – modern table with inline “Добавить институт”
+   ------------------------------------------------------------------ */
 import React, { useEffect, useMemo, useState } from 'react';
 import {
     Box,
     CircularProgress,
-    FormControl,
-    InputLabel,
-    MenuItem,
-    Paper,
-    Select,
-    SelectChangeEvent,
     Table,
     TableBody,
     TableCell,
@@ -27,9 +23,9 @@ import { fetchInstitutes } from '../instituteSlice';
 import { useAppDispatch } from '../../../hooks/useAppDispatch';
 import { useAppSelector } from '../../../hooks/useAppSelector';
 
+/* ───────── helpers & constants ───────── */
 type SortOrder = 'asc' | 'desc';
 
-/* ──────────────── helpers & constants ─────────────── */
 const labels: Record<'email' | 'name' | 'phone', string> = {
     email: 'E-mail',
     name: 'Название',
@@ -41,53 +37,29 @@ const columns = (Object.keys(labels) as (keyof typeof labels)[]).map((f) => ({
     label: labels[f],
 }));
 
-/* ───────────────────── component ─────────────────── */
+/* ───────── component ───────── */
 const InstituteTable: React.FC = () => {
-    const dispatch = useAppDispatch();
-    const navigate = useNavigate();
+    const dispatch  = useAppDispatch();
+    const navigate  = useNavigate();
     const { institutes, status } = useAppSelector((s) => s.institutes);
 
     /* ui state */
-    const [search, setSearch] = useState('');
-    const [sortBy, setSortBy] = useState<keyof typeof labels>('name');
-    const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
-    const [page, setPage] = useState(0);
+    const [search,      setSearch]      = useState('');
+    const [sortBy,      setSortBy]      = useState<keyof typeof labels>('name');
+    const [sortOrder,   setSortOrder]   = useState<SortOrder>('asc');
+    const [page,        setPage]        = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
 
     /* fetch once */
-    useEffect(() => {
-        dispatch(fetchInstitutes());
-    }, [dispatch]);
-
-    /* handlers */
-    const onSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setSearch(e.target.value);
-        setPage(0);
-    };
-
-    const onSort = (field: keyof typeof labels) => {
-        if (field === sortBy) {
-            setSortOrder((p) => (p === 'asc' ? 'desc' : 'asc'));
-        } else {
-            setSortBy(field);
-            setSortOrder('asc');
-        }
-    };
-
-    const handleChangePage = (_: unknown, p: number) => setPage(p);
-    const handleChangeRows = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setRowsPerPage(+e.target.value);
-        setPage(0);
-    };
+    useEffect(() => { dispatch(fetchInstitutes()); }, [dispatch]);
 
     /* transforms */
     const filtered = useMemo(() => {
         const txt = search.toLowerCase();
-        return institutes.filter(
-            (i) =>
-                i.name.toLowerCase().includes(txt) ||
-                i.email.toLowerCase().includes(txt) ||
-                i.phone.toLowerCase().includes(txt),
+        return institutes.filter((i) =>
+            i.name.toLowerCase().includes(txt) ||
+            i.email.toLowerCase().includes(txt) ||
+            i.phone.toLowerCase().includes(txt)
         );
     }, [institutes, search]);
 
@@ -95,11 +67,9 @@ const InstituteTable: React.FC = () => {
         return [...filtered].sort((a, b) => {
             const av = (a as any)[sortBy] as string;
             const bv = (b as any)[sortBy] as string;
-            const va = av.toLowerCase();
-            const vb = bv.toLowerCase();
-            if (va < vb) return sortOrder === 'asc' ? -1 : 1;
-            if (va > vb) return sortOrder === 'asc' ? 1 : -1;
-            return 0;
+            return sortOrder === 'asc'
+                ? av.localeCompare(bv, 'ru')
+                : bv.localeCompare(av, 'ru');
         });
     }, [filtered, sortBy, sortOrder]);
 
@@ -117,14 +87,21 @@ const InstituteTable: React.FC = () => {
         );
     }
 
-    /* ─────────── render ─────────── */
+    /* ───────── render ───────── */
     return (
-        <AnimatedTableShell title="Список институтов">
-            {/* search bar */}
+        <AnimatedTableShell
+            title="Список институтов"
+            actionLabel="ДОБАВИТЬ ИНСТИТУТ"
+            onAction={() => navigate('/institutes/create')}
+        >
+            {/* search */}
             <TextField
                 label="Поиск (название / e-mail / телефон)"
                 value={search}
-                onChange={onSearch}
+                onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(0);
+                }}
                 fullWidth
                 sx={{ mb: 3 }}
             />
@@ -139,7 +116,14 @@ const InstituteTable: React.FC = () => {
                                     <TableSortLabel
                                         active={sortBy === c.field}
                                         direction={sortOrder}
-                                        onClick={() => onSort(c.field)}
+                                        onClick={() => {
+                                            if (sortBy === c.field) {
+                                                setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'));
+                                            } else {
+                                                setSortBy(c.field);
+                                                setSortOrder('asc');
+                                            }
+                                        }}
                                     >
                                         {c.label}
                                     </TableSortLabel>
@@ -147,6 +131,7 @@ const InstituteTable: React.FC = () => {
                             ))}
                         </TableRow>
                     </TableHead>
+
                     <TableBody>
                         {pageData.map((i) => (
                             <TableRow
@@ -165,7 +150,7 @@ const InstituteTable: React.FC = () => {
                             <TableRow>
                                 <TableCell colSpan={columns.length} align="center">
                                     <Typography variant="body2" sx={{ py: 4 }}>
-                                        Институты не найдены 😕
+                                        Институты не найдены ☹️
                                     </Typography>
                                 </TableCell>
                             </TableRow>
@@ -179,9 +164,12 @@ const InstituteTable: React.FC = () => {
                 component="div"
                 count={sorted.length}
                 page={page}
-                onPageChange={handleChangePage}
+                onPageChange={(_, p) => setPage(p)}
                 rowsPerPage={rowsPerPage}
-                onRowsPerPageChange={handleChangeRows}
+                onRowsPerPageChange={(e) => {
+                    setRowsPerPage(+e.target.value);
+                    setPage(0);
+                }}
                 rowsPerPageOptions={[5, 10, 25]}
             />
         </AnimatedTableShell>

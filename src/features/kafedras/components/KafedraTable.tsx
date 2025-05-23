@@ -1,10 +1,12 @@
-// src/features/kafedras/components/KafedraTable.tsx
+/* --------------------------------------------------------------------
+   KafedraTable.tsx – кафедры with “Добавить кафедру” action button
+   ------------------------------------------------------------------ */
+
 import React, { useEffect, useMemo, useState } from 'react';
 import {
     Badge,
     Box,
     CircularProgress,
-    Paper,
     Table,
     TableBody,
     TableCell,
@@ -24,85 +26,63 @@ import { fetchInstitutes } from '../../institutes/instituteSlice';
 import { useAppDispatch } from '../../../hooks/useAppDispatch';
 import { useAppSelector } from '../../../hooks/useAppSelector';
 
+/* ───────── helpers & constants ───────── */
 type SortOrder = 'asc' | 'desc';
 
-/* ──────────────── helpers & constants ─────────────── */
 const labels: Record<'name' | 'email' | 'room' | 'phone', string> = {
-    name: 'Название',
+    name:  'Название',
     email: 'E-mail',
-    room: 'Кабинет',
+    room:  'Кабинет',
     phone: 'Телефон',
 };
 
-const columns = (Object.keys(labels) as (keyof typeof labels)[]).map((f) => ({
-    field: f,
-    label: labels[f],
+const columns = (Object.keys(labels) as (keyof typeof labels)[]).map(k => ({
+    field: k,
+    label: labels[k],
 }));
 
-/* ───────────────────── component ─────────────────── */
+/* ─────────── component ─────────── */
 const KafedraTable: React.FC = () => {
-    const dispatch = useAppDispatch();
-    const navigate = useNavigate();
-
-    const { kafedras, status } = useAppSelector((s) => s.kafedras);
-    const { institutes } = useAppSelector((s) => s.institutes);
+    const dispatch   = useAppDispatch();
+    const navigate   = useNavigate();
+    const { kafedras, status }   = useAppSelector(s => s.kafedras);
+    const { institutes }         = useAppSelector(s => s.institutes);
 
     /* ui state */
-    const [search, setSearch] = useState('');
-    const [sortBy, setSortBy] = useState<keyof typeof labels>('name');
+    const [search, setSearch]       = useState('');
+    const [sortBy, setSortBy]       = useState<keyof typeof labels>('name');
     const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
-    const [page, setPage] = useState(0);
-    const [rowsPerPage, setRowsPerPage] = useState(10);
+    const [page, setPage]           = useState(0);
+    const [rowsPerPage, setRows]    = useState(10);
 
-    /* fetch once */
+    /* fetch data */
     useEffect(() => {
         dispatch(fetchKafedras());
         dispatch(fetchInstitutes());
     }, [dispatch]);
 
-    /* handlers */
-    const onSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setSearch(e.target.value);
-        setPage(0);
-    };
-
-    const onSort = (field: keyof typeof labels) => {
-        if (field === sortBy) {
-            setSortOrder((p) => (p === 'asc' ? 'desc' : 'asc'));
-        } else {
-            setSortBy(field);
-            setSortOrder('asc');
-        }
-    };
-
-    const handleChangePage = (_: unknown, p: number) => setPage(p);
-    const handleChangeRows = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setRowsPerPage(+e.target.value);
-        setPage(0);
-    };
+    /* helpers */
+    const getInstituteName = (id: number) =>
+        institutes.find(i => i.id === id)?.name ?? 'Не указан';
 
     /* transforms */
     const filtered = useMemo(() => {
         const txt = search.toLowerCase();
-        return kafedras.filter(
-            (k) =>
-                k.name.toLowerCase().includes(txt) ||
-                k.email.toLowerCase().includes(txt) ||
-                k.room.toLowerCase().includes(txt) ||
-                k.phone.toLowerCase().includes(txt),
+        return kafedras.filter(k =>
+            [k.name, k.email, k.room, k.phone].some(v => v.toLowerCase().includes(txt)),
         );
     }, [kafedras, search]);
 
     const sorted = useMemo(() => {
-        return [...filtered].sort((a, b) => {
-            const av = (a as any)[sortBy] as string;
-            const bv = (b as any)[sortBy] as string;
-            const va = av.toLowerCase();
-            const vb = bv.toLowerCase();
-            if (va < vb) return sortOrder === 'asc' ? -1 : 1;
-            if (va > vb) return sortOrder === 'asc' ? 1 : -1;
+        const arr = [...filtered];
+        arr.sort((a, b) => {
+            const av = (a as any)[sortBy].toString().toLowerCase();
+            const bv = (b as any)[sortBy].toString().toLowerCase();
+            if (av < bv) return sortOrder === 'asc' ? -1 : 1;
+            if (av > bv) return sortOrder === 'asc' ? 1  : -1;
             return 0;
         });
+        return arr;
     }, [filtered, sortBy, sortOrder]);
 
     const pageData = useMemo(() => {
@@ -110,27 +90,29 @@ const KafedraTable: React.FC = () => {
         return sorted.slice(start, start + rowsPerPage);
     }, [sorted, page, rowsPerPage]);
 
-    /* helpers */
-    const getInstituteName = (id: number) =>
-        institutes.find((i) => i.id === id)?.name ?? 'Не указан';
-
     /* loading */
-    if (status === 'loading') {
+    if (status === 'loading')
         return (
             <Box display="flex" justifyContent="center" mt={10}>
                 <CircularProgress size={48} />
             </Box>
         );
-    }
 
-    /* ─────────── render ─────────── */
+    /* ───────── render ───────── */
     return (
-        <AnimatedTableShell title="Список кафедр">
-            {/* search bar */}
+        <AnimatedTableShell
+            title="Список кафедр"
+            actionLabel="ДОБАВИТЬ КАФЕДРУ"
+            onAction={() => navigate('/kafedras/create')}
+        >
+            {/* search */}
             <TextField
                 label="Поиск (название / e-mail / кабинет / телефон)"
                 value={search}
-                onChange={onSearch}
+                onChange={e => {
+                    setSearch(e.target.value);
+                    setPage(0);
+                }}
                 fullWidth
                 sx={{ mb: 3 }}
             />
@@ -140,12 +122,16 @@ const KafedraTable: React.FC = () => {
                 <Table stickyHeader>
                     <TableHead>
                         <TableRow>
-                            {columns.map((c) => (
+                            {columns.map(c => (
                                 <TableCell key={c.field}>
                                     <TableSortLabel
                                         active={sortBy === c.field}
                                         direction={sortOrder}
-                                        onClick={() => onSort(c.field)}
+                                        onClick={() =>
+                                            c.field === sortBy
+                                                ? setSortOrder(o => (o === 'asc' ? 'desc' : 'asc'))
+                                                : (setSortBy(c.field), setSortOrder('asc'))
+                                        }
                                     >
                                         {c.label}
                                     </TableSortLabel>
@@ -155,8 +141,9 @@ const KafedraTable: React.FC = () => {
                             <TableCell>Институт</TableCell>
                         </TableRow>
                     </TableHead>
+
                     <TableBody>
-                        {pageData.map((k) => (
+                        {pageData.map(k => (
                             <TableRow
                                 key={k.id}
                                 hover
@@ -167,15 +154,11 @@ const KafedraTable: React.FC = () => {
                                 <TableCell>{k.email}</TableCell>
                                 <TableCell>{k.room}</TableCell>
                                 <TableCell>{k.phone}</TableCell>
-                                <TableCell>
-                                    <Box display="flex" justifyContent="center">
-                                        <Badge
-                                            color={k.credentialsNonExpired ? 'success' : 'error'}
-                                            badgeContent={
-                                                k.credentialsNonExpired ? 'Активен' : 'Истёк'
-                                            }
-                                        />
-                                    </Box>
+                                <TableCell align="center">
+                                    <Badge
+                                        color={k.credentialsNonExpired ? 'success' : 'error'}
+                                        badgeContent={k.credentialsNonExpired ? 'Активен' : 'Истёк'}
+                                    />
                                 </TableCell>
                                 <TableCell>{getInstituteName(k.instituteId)}</TableCell>
                             </TableRow>
@@ -199,9 +182,12 @@ const KafedraTable: React.FC = () => {
                 component="div"
                 count={sorted.length}
                 page={page}
-                onPageChange={handleChangePage}
+                onPageChange={(_, p) => setPage(p)}
                 rowsPerPage={rowsPerPage}
-                onRowsPerPageChange={handleChangeRows}
+                onRowsPerPageChange={e => {
+                    setRows(+e.target.value);
+                    setPage(0);
+                }}
                 rowsPerPageOptions={[5, 10, 25]}
             />
         </AnimatedTableShell>

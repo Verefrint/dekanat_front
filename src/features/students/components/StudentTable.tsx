@@ -1,7 +1,11 @@
-// src/features/students/components/StudentTable.tsx
+/* --------------------------------------------------------------------
+   StudentTable.tsx   –   full file, paste over the current one
+   ------------------------------------------------------------------ */
+
 import React, { useEffect, useMemo, useState } from 'react';
 import {
     Box,
+    Button,
     CircularProgress,
     FormControl,
     InputLabel,
@@ -20,64 +24,60 @@ import {
     Typography,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 
+import AnimatedTableShell from '../../../components/AnimatedTableShell';
 import { useAppDispatch } from '../../../hooks/useAppDispatch';
 import { useAppSelector } from '../../../hooks/useAppSelector';
 import { fetchStudents } from '../studentSlice';
 
-import AnimatedTableShell from '../../../components/AnimatedTableShell';
-
-/* ─────────────── helpers & constants ─────────────── */
+/* ───────── helpers & constants ────────── */
 type SortOrder = 'asc' | 'desc';
 
 const labels: Record<string, string> = {
-    surname: 'Фамилия',
-    name: 'Имя',
-    patronymic: 'Отчество',
-    phone: 'Телефон',
-    yearStarted: 'Год поступления',
-    financialForm: 'Форма обучения',
+    surname:        'Фамилия',
+    name:           'Имя',
+    patronymic:     'Отчество',
+    phone:          'Телефон',
+    yearStarted:    'Год поступления',
+    financialForm:  'Форма обучения',
 };
 
 const formRU: Record<'BUDGET' | 'CONTRACT', string> = {
-    BUDGET: 'Бюджет',
+    BUDGET:   'Бюджет',
     CONTRACT: 'Контракт',
 };
 
 const financialOptions = [
-    { value: 'ALL', label: 'Все' },
-    { value: 'BUDGET', label: formRU.BUDGET },
+    { value: 'ALL',      label: 'Все' },
+    { value: 'BUDGET',   label: formRU.BUDGET },
     { value: 'CONTRACT', label: formRU.CONTRACT },
 ];
 
 const columns: { field: keyof typeof labels; labelKey: string }[] = [
-    { field: 'surname', labelKey: 'surname' },
-    { field: 'name', labelKey: 'name' },
-    { field: 'patronymic', labelKey: 'patronymic' },
-    { field: 'phone', labelKey: 'phone' },
-    { field: 'yearStarted', labelKey: 'yearStarted' },
+    { field: 'surname',       labelKey: 'surname' },
+    { field: 'name',          labelKey: 'name' },
+    { field: 'patronymic',    labelKey: 'patronymic' },
+    { field: 'phone',         labelKey: 'phone' },
+    { field: 'yearStarted',   labelKey: 'yearStarted' },
     { field: 'financialForm', labelKey: 'financialForm' },
 ];
 
-/* ───────────────────── component ─────────────────── */
+/* ─────────────────── component ────────────────── */
 const StudentTable: React.FC = () => {
-    const dispatch = useAppDispatch();
-    const navigate = useNavigate();
+    const dispatch  = useAppDispatch();
+    const navigate  = useNavigate();
     const { students, status } = useAppSelector((s) => s.students);
 
     /* ui state */
-    const [search, setSearch] = useState('');
-    const [filter, setFilter] = useState('ALL');
-    const [sortBy, setSortBy] = useState<keyof typeof labels>('surname');
-    const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
-    const [page, setPage] = useState(0);
+    const [search,      setSearch]      = useState('');
+    const [filter,      setFilter]      = useState('ALL');
+    const [sortBy,      setSortBy]      = useState<keyof typeof labels>('surname');
+    const [sortOrder,   setSortOrder]   = useState<SortOrder>('asc');
+    const [page,        setPage]        = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
 
-    /* fetch once */
-    useEffect(() => {
-        dispatch(fetchStudents());
-    }, [dispatch]);
+    /* fetch on mount */
+    useEffect(() => { dispatch(fetchStudents()); }, [dispatch]);
 
     /* handlers */
     const onSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -92,30 +92,24 @@ const StudentTable: React.FC = () => {
 
     const onSort = (field: keyof typeof labels) => {
         if (field === sortBy) {
-            setSortOrder((p) => (p === 'asc' ? 'desc' : 'asc'));
+            setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'));
         } else {
             setSortBy(field);
             setSortOrder('asc');
         }
     };
 
-    const handleChangePage = (_: unknown, p: number) => setPage(p);
-    const handleChangeRows = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setRowsPerPage(+e.target.value);
-        setPage(0);
-    };
-
-    /* transforms */
+    /* transform data */
     const filtered = useMemo(() => {
         const txt = search.toLowerCase();
         return students.filter((s) => {
             const { surname, name, patronymic } = s.person;
-            const matchesTxt =
+            const matchTxt =
                 surname.toLowerCase().includes(txt) ||
                 name.toLowerCase().includes(txt) ||
                 patronymic.toLowerCase().includes(txt);
-            const matchesFilter = filter === 'ALL' || s.financialForm === filter;
-            return matchesTxt && matchesFilter;
+            const matchForm = filter === 'ALL' || s.financialForm === filter;
+            return matchTxt && matchForm;
         });
     }, [students, search, filter]);
 
@@ -123,10 +117,10 @@ const StudentTable: React.FC = () => {
         return [...filtered].sort((a, b) => {
             const aVal = a.person[sortBy as any] ?? (a as any)[sortBy];
             const bVal = b.person[sortBy as any] ?? (b as any)[sortBy];
-            const va = typeof aVal === 'string' ? aVal.toLowerCase() : aVal;
-            const vb = typeof bVal === 'string' ? bVal.toLowerCase() : bVal;
+            const va   = typeof aVal === 'string' ? aVal.toLowerCase() : aVal;
+            const vb   = typeof bVal === 'string' ? bVal.toLowerCase() : bVal;
             if (va < vb) return sortOrder === 'asc' ? -1 : 1;
-            if (va > vb) return sortOrder === 'asc' ? 1 : -1;
+            if (va > vb) return sortOrder === 'asc' ?  1 : -1;
             return 0;
         });
     }, [filtered, sortBy, sortOrder]);
@@ -136,7 +130,7 @@ const StudentTable: React.FC = () => {
         return sorted.slice(start, start + rowsPerPage);
     }, [sorted, page, rowsPerPage]);
 
-    /* loading */
+    /* loading state */
     if (status === 'loading') {
         return (
             <Box display="flex" justifyContent="center" mt={10}>
@@ -144,10 +138,12 @@ const StudentTable: React.FC = () => {
             </Box>
         );
     }
-
-    /* ─────────── render ─────────── */
     return (
-        <AnimatedTableShell title="Список студентов">
+        <AnimatedTableShell
+            title="Список студентов"
+            actionLabel="ДОБАВИТЬ СТУДЕНТА"
+            onAction={() => navigate('/students/create')}
+        >
             {/* toolbar */}
             <Box
                 sx={{
@@ -180,19 +176,20 @@ const StudentTable: React.FC = () => {
                 <Table stickyHeader>
                     <TableHead>
                         <TableRow>
-                            {columns.map((c) => (
-                                <TableCell key={c.field}>
+                            {columns.map((col) => (
+                                <TableCell key={col.field}>
                                     <TableSortLabel
-                                        active={sortBy === c.field}
+                                        active={sortBy === col.field}
                                         direction={sortOrder}
-                                        onClick={() => onSort(c.field)}
+                                        onClick={() => onSort(col.field)}
                                     >
-                                        {labels[c.labelKey]}
+                                        {labels[col.labelKey]}
                                     </TableSortLabel>
                                 </TableCell>
                             ))}
                         </TableRow>
                     </TableHead>
+
                     <TableBody>
                         {pageData.map((s) => (
                             <TableRow
@@ -228,9 +225,12 @@ const StudentTable: React.FC = () => {
                 component="div"
                 count={sorted.length}
                 page={page}
-                onPageChange={handleChangePage}
+                onPageChange={(_, p) => setPage(p)}
                 rowsPerPage={rowsPerPage}
-                onRowsPerPageChange={handleChangeRows}
+                onRowsPerPageChange={(e) => {
+                    setRowsPerPage(+e.target.value);
+                    setPage(0);
+                }}
                 rowsPerPageOptions={[5, 10, 25]}
             />
         </AnimatedTableShell>
