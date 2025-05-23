@@ -1,13 +1,12 @@
-/* ───────────────────────── StudentFormPage.tsx ───────────────────────── */
-/* Drop-in replacement – paste over the current file                       */
+/* -----------------------------------------------------------------------
+   StudentFormPage.tsx · client-side duplicate checks only
+   -------------------------------------------------------------------- */
 
 import React, { useEffect, useState } from 'react';
 import {
     Alert,
     Box,
     Button,
-    Card,
-    CardContent,
     CircularProgress,
     Dialog,
     DialogActions,
@@ -16,99 +15,86 @@ import {
     DialogTitle,
     MenuItem,
     TextField,
-    Typography
 } from '@mui/material';
-import { motion } from 'framer-motion';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
+import AnimatedFormShell from '../../../components/AnimatedFormShell';
 import { useAppDispatch } from '../../../hooks/useAppDispatch';
 import { useAppSelector } from '../../../hooks/useAppSelector';
 import {
     fetchStudentById,
     createStudent,
     updateStudent,
-    deleteStudent
+    deleteStudent,
 } from '../studentSlice';
 import { Student } from '../../../types/people';
 
-/* ───────── helper: extract readable message from ANY error ────────── */
-const getErrorMessage = (err: unknown): string => {
-    if (typeof err === 'string') return err;
+/* ───────── helpers ───────── */
+const msg = (e: unknown): string =>
+    typeof e === 'string'
+        ? e
+        : (e as any)?.message ||
+        (e as any)?.response?.data?.message ||
+        JSON.stringify(e ?? {});
 
-    if (err && typeof err === 'object') {
-        const e = err as any;
-        return (
-            e.message ??
-            e.data?.message ??
-            e.response?.data?.message ??
-            JSON.stringify(e)
-        );
-    }
-    return 'Неизвестная ошибка';
-};
-
-/* ─────────────────────────── constants ─────────────────────────── */
-const currentYear = new Date().getFullYear();
-const initialForm: Omit<Student, 'id'> = {
+/* ───────── constants ───────── */
+const THIS_YEAR = new Date().getFullYear();
+const empty: Omit<Student, 'id'> = {
     person: { name: '', surname: '', patronymic: '', phone: '' },
-    yearStarted: currentYear,
-    financialForm: 'BUDGET'
+    yearStarted: THIS_YEAR,
+    financialForm: 'BUDGET',
 };
-const financialOptions = [
+const forms = [
     { value: 'BUDGET', label: 'Бюджет' },
-    { value: 'CONTRACT', label: 'Контракт' }
+    { value: 'CONTRACT', label: 'Контракт' },
 ];
 
-/* ─────────────────────────── types ─────────────────────────────── */
-type FormField =
-    | keyof typeof initialForm.person
+/* ───────── types ───────── */
+type Field =
+    | keyof typeof empty.person
     | 'yearStarted'
     | 'financialForm';
-type FormErrors = Partial<Record<FormField, string>>;
+type Errors = Partial<Record<Field, string>>;
 
-/* ───────────────────────── component ────────────────────────────── */
+/* ───────── component ───────── */
 const StudentFormPage: React.FC = () => {
-    /* hooks & store */
     const { id } = useParams<{ id?: string }>();
     const isEdit = Boolean(id);
-    const studentId = id ? +id : null;
+    const sid = id ? +id : null;
 
-    const navigate = useNavigate();
+    const nav = useNavigate();
     const dispatch = useAppDispatch();
-    const { selectedStudent, students, status } = useAppSelector(
-        s => s.students
-    );
+    const { selectedStudent, students, status } = useAppSelector(s => s.students);
 
-    /* local state */
-    const [data, setData] = useState(initialForm);
-    const [errors, setErrors] = useState<FormErrors>({});
+    /* state */
+    const [data, setData] = useState(empty);
+    const [errors, setErrors] = useState<Errors>({});
     const [serverError, setServerError] = useState<string | null>(null);
-    const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+    const [confirmDelete, setConfirmDelete] = useState(false);
     const [deleteError, setDeleteError] = useState<string | null>(null);
 
-    /* side-effects */
+    /* fetch / populate */
     useEffect(() => {
-        if (isEdit && studentId !== null) {
-            dispatch(fetchStudentById(studentId));
-        }
-    }, [dispatch, isEdit, studentId]);
+        if (isEdit && sid !== null) dispatch(fetchStudentById(sid));
+    }, [dispatch, isEdit, sid]);
 
     useEffect(() => {
         if (isEdit && selectedStudent) {
             setData({
                 person: { ...selectedStudent.person },
                 yearStarted: selectedStudent.yearStarted,
-                financialForm: selectedStudent.financialForm
+                financialForm: selectedStudent.financialForm,
             });
         }
     }, [isEdit, selectedStudent]);
 
-    /* validation */
-    const validate = (): FormErrors => {
-        const e: FormErrors = {};
+    /* ─── validation ─── */
+    const validate = (): Errors => {
+        const e: Errors = {};
         const { surname, name, patronymic, phone } = data.person;
         const year = data.yearStarted;
 
+        /* basic empty / format checks */
         if (!surname.trim()) e.surname = 'Фамилия обязательна';
         if (!name.trim()) e.name = 'Имя обязательно';
         if (!patronymic.trim()) e.patronymic = 'Отчество обязательно';
@@ -118,56 +104,74 @@ const StudentFormPage: React.FC = () => {
             e.phone = 'Формат: + и 5–15 цифр';
 
         if (!year || !Number.isInteger(year)) e.yearStarted = 'Неверный год';
-        else if (year < 2000 || year > currentYear)
-            e.yearStarted = `Год между 2000 и ${currentYear}`;
-        else if (students.some(s => s.yearStarted === year && s.id !== studentId))
-            e.yearStarted = `Год ${year} уже используется`;
+        else if (year < 2000 || year > THIS_YEAR)
+            e.yearStarted = `Год между 2000 и ${THIS_YEAR}`;
+
+        /* unique patronymic check (old DB constraint) */
+        const patronymicTaken = students.some(
+            s =>
+                s.id !== sid &&
+                s.person.patronymic.trim().toLowerCase() ===
+                patronymic.trim().toLowerCase(),
+        );
+        if (patronymicTaken)
+            e.patronymic = 'Студент с таким отчеством уже есть';
+
+        /* composite F-I-O + year */
+        const duplicate = students.some(
+            s =>
+                s.id !== sid &&
+                s.yearStarted === year &&
+                s.person.surname.trim().toLowerCase() === surname.trim().toLowerCase() &&
+                s.person.name.trim().toLowerCase() === name.trim().toLowerCase() &&
+                s.person.patronymic.trim().toLowerCase() ===
+                patronymic.trim().toLowerCase(),
+        );
+        if (duplicate)
+            e.yearStarted = `Студент ${surname} ${name} уже зарегистрирован за ${year}`;
 
         return e;
     };
 
-    /* field change */
-    const onField = (field: FormField, value: string | number) => {
+    /* change */
+    const onField = (field: Field, val: string | number) => {
         setErrors(p => ({ ...p, [field]: undefined }));
         setServerError(null);
 
         if (field in data.person) {
-            setData(d => ({ ...d, person: { ...d.person, [field]: value } }));
+            setData(d => ({ ...d, person: { ...d.person, [field]: val } }));
         } else {
-            setData(d => ({ ...d, [field]: value }));
+            setData(d => ({ ...d, [field]: val }));
         }
     };
 
     /* submit */
-    const onSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        const validation = validate();
-        setErrors(validation);
-        if (Object.keys(validation).length) return;
+    const onSubmit = async (ev: React.FormEvent) => {
+        ev.preventDefault();
+        const errs = validate();
+        setErrors(errs);
+        if (Object.keys(errs).length) return;
 
         try {
-            if (isEdit && studentId !== null) {
-                await dispatch(updateStudent({ id: studentId, ...data })).unwrap();
+            if (isEdit && sid !== null) {
+                await dispatch(updateStudent({ id: sid, ...data })).unwrap();
             } else {
                 await dispatch(createStudent(data)).unwrap();
             }
-            navigate('/students');
+            nav('/students');
         } catch (err) {
-            const msg = getErrorMessage(err);
-            setServerError(
-                msg.includes('duplicate') ? 'Студент с таким годом уже есть' : msg
-            );
+            setServerError(msg(err));
         }
     };
 
     /* delete */
     const onDelete = async () => {
-        if (studentId === null) return;
+        if (sid === null) return;
         try {
-            await dispatch(deleteStudent(studentId)).unwrap();
-            navigate('/students');
+            await dispatch(deleteStudent(sid)).unwrap();
+            nav('/students');
         } catch (err) {
-            setDeleteError(getErrorMessage(err));
+            setDeleteError(msg(err));
         }
     };
 
@@ -175,153 +179,105 @@ const StudentFormPage: React.FC = () => {
     if (isEdit && status === 'loading') {
         return (
             <Box display="flex" justifyContent="center" mt={8}>
-                <CircularProgress size={48} />
+                <CircularProgress />
             </Box>
         );
     }
 
     /* render */
     return (
-        <Box
-            sx={{
-                position: 'relative',
-                minHeight: '100vh',
-                overflow: 'hidden',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                px: 2
-            }}
-        >
-            {/* blurred background */}
-            <Box
-                sx={{
-                    position: 'absolute',
-                    inset: 0,
-                    background: 'linear-gradient(120deg,#dfe9f3 0%,#ffffff 100%)',
-                    filter: 'blur(8px)',
-                    transform: 'scale(1.1)',
-                    zIndex: -1
-                }}
-            />
+        <AnimatedFormShell title={isEdit ? 'Редактировать студента' : 'Создать студента'}>
+            <Box component="form" onSubmit={onSubmit}>
+                <TextField
+                    label="Фамилия"
+                    value={data.person.surname}
+                    fullWidth
+                    margin="normal"
+                    error={!!errors.surname}
+                    helperText={errors.surname}
+                    onChange={e => onField('surname', e.target.value)}
+                />
 
-            <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 0.45 }}
-                style={{ width: '100%', maxWidth: 520 }}
-            >
-                <Card
-                    elevation={8}
-                    sx={{
-                        backdropFilter: 'blur(4px)',
-                        backgroundColor: 'rgba(255,255,255,0.75)',
-                        borderRadius: 4
-                    }}
+                <TextField
+                    label="Имя"
+                    value={data.person.name}
+                    fullWidth
+                    margin="normal"
+                    error={!!errors.name}
+                    helperText={errors.name}
+                    onChange={e => onField('name', e.target.value)}
+                />
+
+                <TextField
+                    label="Отчество"
+                    value={data.person.patronymic}
+                    fullWidth
+                    margin="normal"
+                    error={!!errors.patronymic}
+                    helperText={errors.patronymic}
+                    onChange={e => onField('patronymic', e.target.value)}
+                />
+
+                <TextField
+                    label="Телефон"
+                    value={data.person.phone}
+                    fullWidth
+                    margin="normal"
+                    error={!!errors.phone}
+                    helperText={errors.phone}
+                    onChange={e => onField('phone', e.target.value)}
+                />
+
+                <TextField
+                    label="Год поступления"
+                    type="number"
+                    value={data.yearStarted}
+                    fullWidth
+                    margin="normal"
+                    error={!!errors.yearStarted}
+                    helperText={errors.yearStarted}
+                    onChange={e => onField('yearStarted', +e.target.value)}
+                />
+
+                <TextField
+                    select
+                    label="Форма обучения"
+                    value={data.financialForm}
+                    fullWidth
+                    margin="normal"
+                    onChange={e => onField('financialForm', e.target.value)}
                 >
-                    <CardContent component="form" onSubmit={onSubmit}>
-                        <Typography variant="h5" align="center" mb={2}>
-                            {isEdit ? 'Редактировать студента' : 'Создать студента'}
-                        </Typography>
+                    {forms.map(opt => (
+                        <MenuItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                        </MenuItem>
+                    ))}
+                </TextField>
 
-                        {/* inputs */}
-                        <TextField
-                            label="Фамилия"
-                            value={data.person.surname}
-                            fullWidth
-                            margin="normal"
-                            error={!!errors.surname}
-                            helperText={errors.surname}
-                            onChange={e => onField('surname', e.target.value)}
-                        />
-                        <TextField
-                            label="Имя"
-                            value={data.person.name}
-                            fullWidth
-                            margin="normal"
-                            error={!!errors.name}
-                            helperText={errors.name}
-                            onChange={e => onField('name', e.target.value)}
-                        />
-                        <TextField
-                            label="Отчество"
-                            value={data.person.patronymic}
-                            fullWidth
-                            margin="normal"
-                            error={!!errors.patronymic}
-                            helperText={errors.patronymic}
-                            onChange={e => onField('patronymic', e.target.value)}
-                        />
-                        <TextField
-                            label="Телефон"
-                            value={data.person.phone}
-                            fullWidth
-                            margin="normal"
-                            error={!!errors.phone}
-                            helperText={errors.phone}
-                            onChange={e => onField('phone', e.target.value)}
-                        />
-                        <TextField
-                            label="Год поступления"
-                            type="number"
-                            value={data.yearStarted}
-                            fullWidth
-                            margin="normal"
-                            error={!!errors.yearStarted}
-                            helperText={errors.yearStarted}
-                            onChange={e => onField('yearStarted', +e.target.value)}
-                        />
-                        <TextField
-                            select
-                            label="Форма обучения"
-                            value={data.financialForm}
-                            fullWidth
-                            margin="normal"
-                            onChange={e => onField('financialForm', e.target.value)}
-                        >
-                            {financialOptions.map(opt => (
-                                <MenuItem key={opt.value} value={opt.value}>
-                                    {opt.label}
-                                </MenuItem>
-                            ))}
-                        </TextField>
+                {serverError && (
+                    <Alert severity="error" sx={{ mt: 2 }}>
+                        {serverError}
+                    </Alert>
+                )}
 
-                        {/* server error */}
-                        {serverError && (
-                            <Alert severity="error" sx={{ mt: 2 }}>
-                                {serverError}
-                            </Alert>
-                        )}
+                <Box display="flex" justifyContent="space-between" mt={3}>
+                    {isEdit && (
+                        <Button variant="outlined" color="error" onClick={() => setConfirmDelete(true)}>
+                            Удалить
+                        </Button>
+                    )}
+                    <Button type="submit" variant="contained">
+                        {isEdit ? 'Сохранить' : 'Создать'}
+                    </Button>
+                </Box>
+            </Box>
 
-                        {/* action buttons */}
-                        <Box display="flex" justifyContent="space-between" mt={3}>
-                            {isEdit && (
-                                <Button
-                                    variant="outlined"
-                                    color="error"
-                                    onClick={() => setConfirmDeleteOpen(true)}
-                                >
-                                    Удалить
-                                </Button>
-                            )}
-                            <Button type="submit" variant="contained" size="large">
-                                {isEdit ? 'Сохранить' : 'Создать'}
-                            </Button>
-                        </Box>
-                    </CardContent>
-                </Card>
-            </motion.div>
-
-            {/* delete confirmation dialog */}
-            <Dialog
-                open={confirmDeleteOpen}
-                onClose={() => setConfirmDeleteOpen(false)}
-            >
+            {/* delete confirmation */}
+            <Dialog open={confirmDelete} onClose={() => setConfirmDelete(false)}>
                 <DialogTitle>Подтвердите удаление</DialogTitle>
                 <DialogContent>
                     <DialogContentText>
-                        Вы уверены, что хотите удалить этого студента? Это действие не
-                        обратимо.
+                        Вы уверены, что хотите удалить этого студента? Это действие не обратимо.
                     </DialogContentText>
                     {deleteError && (
                         <Alert severity="error" sx={{ mt: 2 }}>
@@ -330,13 +286,13 @@ const StudentFormPage: React.FC = () => {
                     )}
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setConfirmDeleteOpen(false)}>Отмена</Button>
+                    <Button onClick={() => setConfirmDelete(false)}>Отмена</Button>
                     <Button variant="contained" color="error" onClick={onDelete}>
                         Удалить
                     </Button>
                 </DialogActions>
             </Dialog>
-        </Box>
+        </AnimatedFormShell>
     );
 };
 

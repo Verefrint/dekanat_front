@@ -3,11 +3,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
     Box,
     CircularProgress,
-    Container,
     FormControl,
     InputLabel,
     MenuItem,
-    Paper,
     Select,
     SelectChangeEvent,
     Table,
@@ -19,35 +17,38 @@ import {
     TableRow,
     TableSortLabel,
     TextField,
-    Typography
+    Typography,
 } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+
 import { useAppDispatch } from '../../../hooks/useAppDispatch';
 import { useAppSelector } from '../../../hooks/useAppSelector';
 import { fetchStudents } from '../studentSlice';
-import { useNavigate } from 'react-router-dom';
 
+import AnimatedTableShell from '../../../components/AnimatedTableShell';
+
+/* ─────────────── helpers & constants ─────────────── */
 type SortOrder = 'asc' | 'desc';
 
-/* ──────────────── column helpers ──────────────── */
 const labels: Record<string, string> = {
     surname: 'Фамилия',
     name: 'Имя',
     patronymic: 'Отчество',
     phone: 'Телефон',
     yearStarted: 'Год поступления',
-    financialForm: 'Форма обучения'
+    financialForm: 'Форма обучения',
 };
 
 const formRU: Record<'BUDGET' | 'CONTRACT', string> = {
     BUDGET: 'Бюджет',
-    CONTRACT: 'Контракт'
+    CONTRACT: 'Контракт',
 };
 
 const financialOptions = [
     { value: 'ALL', label: 'Все' },
     { value: 'BUDGET', label: formRU.BUDGET },
-    { value: 'CONTRACT', label: formRU.CONTRACT }
+    { value: 'CONTRACT', label: formRU.CONTRACT },
 ];
 
 const columns: { field: keyof typeof labels; labelKey: string }[] = [
@@ -56,16 +57,16 @@ const columns: { field: keyof typeof labels; labelKey: string }[] = [
     { field: 'patronymic', labelKey: 'patronymic' },
     { field: 'phone', labelKey: 'phone' },
     { field: 'yearStarted', labelKey: 'yearStarted' },
-    { field: 'financialForm', labelKey: 'financialForm' }
+    { field: 'financialForm', labelKey: 'financialForm' },
 ];
 
-/* ───────────────── component ───────────────── */
+/* ───────────────────── component ─────────────────── */
 const StudentTable: React.FC = () => {
     const dispatch = useAppDispatch();
-    const { students, status } = useAppSelector(s => s.students);
     const navigate = useNavigate();
+    const { students, status } = useAppSelector((s) => s.students);
 
-    /* UI state */
+    /* ui state */
     const [search, setSearch] = useState('');
     const [filter, setFilter] = useState('ALL');
     const [sortBy, setSortBy] = useState<keyof typeof labels>('surname');
@@ -79,46 +80,49 @@ const StudentTable: React.FC = () => {
     }, [dispatch]);
 
     /* handlers */
-    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const onSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
         setSearch(e.target.value);
         setPage(0);
     };
-    const handleFilter = (e: SelectChangeEvent) => {
+
+    const onFilter = (e: SelectChangeEvent) => {
         setFilter(e.target.value);
         setPage(0);
     };
-    const handleSort = (field: keyof typeof labels) => {
-        if (sortBy === field) {
-            setSortOrder(o => (o === 'asc' ? 'desc' : 'asc'));
+
+    const onSort = (field: keyof typeof labels) => {
+        if (field === sortBy) {
+            setSortOrder((p) => (p === 'asc' ? 'desc' : 'asc'));
         } else {
             setSortBy(field);
             setSortOrder('asc');
         }
     };
-    const handleChangePage = (_: unknown, newPage: number) => setPage(newPage);
+
+    const handleChangePage = (_: unknown, p: number) => setPage(p);
     const handleChangeRows = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setRowsPerPage(parseInt(e.target.value, 10));
+        setRowsPerPage(+e.target.value);
         setPage(0);
     };
 
     /* transforms */
     const filtered = useMemo(() => {
         const txt = search.toLowerCase();
-        return students.filter(st => {
-            const { surname, name, patronymic } = st.person;
-            const matchesText =
+        return students.filter((s) => {
+            const { surname, name, patronymic } = s.person;
+            const matchesTxt =
                 surname.toLowerCase().includes(txt) ||
                 name.toLowerCase().includes(txt) ||
                 patronymic.toLowerCase().includes(txt);
-            const matchesFilter = filter === 'ALL' || st.financialForm === filter;
-            return matchesText && matchesFilter;
+            const matchesFilter = filter === 'ALL' || s.financialForm === filter;
+            return matchesTxt && matchesFilter;
         });
     }, [students, search, filter]);
 
     const sorted = useMemo(() => {
         return [...filtered].sort((a, b) => {
-            const aVal = a.person[sortBy as keyof typeof a.person] ?? (a as any)[sortBy];
-            const bVal = b.person[sortBy as keyof typeof b.person] ?? (b as any)[sortBy];
+            const aVal = a.person[sortBy as any] ?? (a as any)[sortBy];
+            const bVal = b.person[sortBy as any] ?? (b as any)[sortBy];
             const va = typeof aVal === 'string' ? aVal.toLowerCase() : aVal;
             const vb = typeof bVal === 'string' ? bVal.toLowerCase() : bVal;
             if (va < vb) return sortOrder === 'asc' ? -1 : 1;
@@ -132,7 +136,7 @@ const StudentTable: React.FC = () => {
         return sorted.slice(start, start + rowsPerPage);
     }, [sorted, page, rowsPerPage]);
 
-    /* loading state */
+    /* loading */
     if (status === 'loading') {
         return (
             <Box display="flex" justifyContent="center" mt={10}>
@@ -141,132 +145,95 @@ const StudentTable: React.FC = () => {
         );
     }
 
-    /* render */
+    /* ─────────── render ─────────── */
     return (
-        <Box
-            sx={{
-                position: 'relative',
-                minHeight: '50vh',
-                overflow: 'hidden',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                px: 2
-            }}
-        >
-            {/* blurred gradient bg */}
+        <AnimatedTableShell title="Список студентов">
+            {/* toolbar */}
             <Box
                 sx={{
-                    position: 'absolute',
-                    inset: 0,
-                    background: 'linear-gradient(120deg,#dfe9f3 0%,#ffffff 100%)',
-                    filter: 'blur(8px)',
-                    transform: 'scale(1.1)',
-                    zIndex: -1
+                    display: 'flex',
+                    flexDirection: { xs: 'column', sm: 'row' },
+                    gap: 2,
+                    mb: 3,
                 }}
-            />
-
-            <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.4 }}
-                style={{ width: '100%', maxWidth: 1100 }}
             >
-                <Paper
-                    elevation={10}
-                    sx={{
-                        borderRadius: 4,
-                        backdropFilter: 'blur(4px)',
-                        backgroundColor: 'rgba(255,255,255,0.8)',
-                        p: { xs: 2, sm: 3 }
-                    }}
-                >
-                    {/* toolbar */}
-                    <Box
-                        sx={{
-                            display: 'flex',
-                            flexDirection: { xs: 'column', sm: 'row' },
-                            gap: 2,
-                            mb: 3
-                        }}
-                    >
-                        <TextField
-                            label="Поиск (ФИО)"
-                            value={search}
-                            onChange={handleSearch}
-                            fullWidth
-                        />
-                        <FormControl sx={{ minWidth: 180 }}>
-                            <InputLabel>Форма обучения</InputLabel>
-                            <Select value={filter} label="Форма обучения" onChange={handleFilter}>
-                                {financialOptions.map(opt => (
-                                    <MenuItem key={opt.value} value={opt.value}>
-                                        {opt.label}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                    </Box>
+                <TextField
+                    label="Поиск (ФИО)"
+                    value={search}
+                    onChange={onSearch}
+                    fullWidth
+                />
+                <FormControl sx={{ minWidth: 180 }}>
+                    <InputLabel>Форма обучения</InputLabel>
+                    <Select value={filter} label="Форма обучения" onChange={onFilter}>
+                        {financialOptions.map((opt) => (
+                            <MenuItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+            </Box>
 
-                    {/* table */}
-                    <TableContainer sx={{ maxHeight: 540 }}>
-                        <Table stickyHeader>
-                            <TableHead>
-                                <TableRow>
-                                    {columns.map(col => (
-                                        <TableCell key={col.field}>
-                                            <TableSortLabel
-                                                active={sortBy === col.field}
-                                                direction={sortOrder}
-                                                onClick={() => handleSort(col.field)}
-                                            >
-                                                {labels[col.labelKey]}
-                                            </TableSortLabel>
-                                        </TableCell>
-                                    ))}
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {pageData.map(st => (
-                                    <TableRow
-                                        key={st.id}
-                                        hover
-                                        onClick={() => navigate(`/students/${st.id}`)}
-                                        sx={{ cursor: 'pointer' }}
+            {/* table */}
+            <TableContainer sx={{ maxHeight: 540 }}>
+                <Table stickyHeader>
+                    <TableHead>
+                        <TableRow>
+                            {columns.map((c) => (
+                                <TableCell key={c.field}>
+                                    <TableSortLabel
+                                        active={sortBy === c.field}
+                                        direction={sortOrder}
+                                        onClick={() => onSort(c.field)}
                                     >
-                                        <TableCell>{st.person.surname}</TableCell>
-                                        <TableCell>{st.person.name}</TableCell>
-                                        <TableCell>{st.person.patronymic}</TableCell>
-                                        <TableCell>{st.person.phone}</TableCell>
-                                        <TableCell>{st.yearStarted}</TableCell>
-                                        <TableCell>{formRU[st.financialForm]}</TableCell>
-                                    </TableRow>
-                                ))}
-                                {pageData.length === 0 && (
-                                    <TableRow>
-                                        <TableCell colSpan={columns.length} align="center">
-                                            <Typography variant="body2" sx={{ py: 4 }}>
-                                                Студенты не найдены 😕
-                                            </Typography>
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
+                                        {labels[c.labelKey]}
+                                    </TableSortLabel>
+                                </TableCell>
+                            ))}
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {pageData.map((s) => (
+                            <TableRow
+                                key={s.id}
+                                hover
+                                sx={{ cursor: 'pointer' }}
+                                onClick={() => navigate(`/students/${s.id}`)}
+                            >
+                                <TableCell>{s.person.surname}</TableCell>
+                                <TableCell>{s.person.name}</TableCell>
+                                <TableCell>{s.person.patronymic}</TableCell>
+                                <TableCell>{s.person.phone}</TableCell>
+                                <TableCell>{s.yearStarted}</TableCell>
+                                <TableCell>{formRU[s.financialForm]}</TableCell>
+                            </TableRow>
+                        ))}
 
-                    <TablePagination
-                        component="div"
-                        count={sorted.length}
-                        page={page}
-                        onPageChange={handleChangePage}
-                        rowsPerPage={rowsPerPage}
-                        onRowsPerPageChange={handleChangeRows}
-                        rowsPerPageOptions={[5, 10, 25]}
-                    />
-                </Paper>
-            </motion.div>
-        </Box>
+                        {pageData.length === 0 && (
+                            <TableRow>
+                                <TableCell colSpan={columns.length} align="center">
+                                    <Typography variant="body2" sx={{ py: 4 }}>
+                                        Студенты не найдены 😕
+                                    </Typography>
+                                </TableCell>
+                            </TableRow>
+                        )}
+                    </TableBody>
+                </Table>
+            </TableContainer>
+
+            {/* pagination */}
+            <TablePagination
+                component="div"
+                count={sorted.length}
+                page={page}
+                onPageChange={handleChangePage}
+                rowsPerPage={rowsPerPage}
+                onRowsPerPageChange={handleChangeRows}
+                rowsPerPageOptions={[5, 10, 25]}
+            />
+        </AnimatedTableShell>
     );
 };
 

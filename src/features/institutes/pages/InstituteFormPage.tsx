@@ -1,239 +1,225 @@
+/* -----------------------------------------------------------------------
+   InstituteFormPage – uses the shared AnimatedFormShell
+   -------------------------------------------------------------------- */
+
+import React, { useEffect, useState } from 'react';
 import {
+    Alert,
     Box,
     Button,
-    Container,
-    TextField,
-    Typography,
     CircularProgress,
     Dialog,
-    DialogTitle,
+    DialogActions,
     DialogContent,
     DialogContentText,
-    DialogActions
+    DialogTitle,
+    TextField,
 } from '@mui/material';
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useAppDispatch } from "../../../hooks/useAppDispatch.ts";
-import { useAppSelector } from "../../../hooks/useAppSelector.ts";
-import { fetchInstituteById, createInstitute, updateInstitute, deleteInstitute } from "../instituteSlice.ts";
-import { Institute } from '../../../types/institute.ts';
+import { useNavigate, useParams } from 'react-router-dom';
 
+import { useAppDispatch } from '../../../hooks/useAppDispatch';
+import { useAppSelector } from '../../../hooks/useAppSelector';
+import {
+    fetchInstituteById,
+    createInstitute,
+    updateInstitute,
+    deleteInstitute,
+} from '../instituteSlice';
+import { Institute } from '../../../types/institute';
+
+import AnimatedFormShell from '../../../components/AnimatedFormShell';
+
+/* ───────── helper ───────── */
+const getMsg = (err: unknown): string =>
+    typeof err === 'string'
+        ? err
+        : (err as any)?.message ||
+        (err as any)?.response?.data?.message ||
+        JSON.stringify(err ?? {});
+
+/* ───────── constants / types ───────── */
 const initialForm: Omit<Institute, 'id'> = {
-    email: '', 
-    name: '', 
-    phone: ''
+    email: '',
+    name: '',
+    phone: '',
 };
+type FormErrors = Partial<Record<keyof typeof initialForm, string>>;
 
-type FormErrors = {
-    email?: string;
-    name?: string;
-    phone?: string;
-};
-
+/* ───────── component ───────── */
 const InstituteFormPage: React.FC = () => {
-    const { id } = useParams();
-    const isEditMode = Boolean(id);
-    const currentId = id ? +id : null;
-    const navigate = useNavigate();
+    const { id } = useParams<{ id?: string }>();
+    const isEdit = Boolean(id);
+    const instituteId = id ? +id : null;
+
     const dispatch = useAppDispatch();
+    const navigate = useNavigate();
+    const { selectedInstitute, status } = useAppSelector(s => s.institutes);
 
-    const instituteFromStore = useAppSelector(s => s.institutes.selectedInstitute);
-    const { status } = useAppSelector(s => s.institutes);
-
-    const [formData, setFormData] = useState<Omit<Institute, 'id'>>(initialForm);
+    /* local state */
+    const [data, setData] = useState(initialForm);
     const [errors, setErrors] = useState<FormErrors>({});
     const [serverError, setServerError] = useState<string | null>(null);
-
-    // Состояние для открытия/закрытия модального окна удаления
-    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
     const [deleteError, setDeleteError] = useState<string | null>(null);
 
+    /* fetch / hydrate */
     useEffect(() => {
-        if (isEditMode && currentId !== null) {
-            dispatch(fetchInstituteById(currentId));
-        }
-    }, [dispatch, currentId, isEditMode]);
+        if (isEdit && instituteId !== null) dispatch(fetchInstituteById(instituteId));
+    }, [dispatch, isEdit, instituteId]);
 
     useEffect(() => {
-        if (isEditMode && instituteFromStore) {
-            setFormData({
-                email: instituteFromStore.email,
-                name: instituteFromStore.name,
-                phone: instituteFromStore.phone
+        if (isEdit && selectedInstitute) {
+            setData({
+                email: selectedInstitute.email,
+                name: selectedInstitute.name,
+                phone: selectedInstitute.phone,
             });
         }
-    }, [instituteFromStore, isEditMode]);
+    }, [isEdit, selectedInstitute]);
 
+    /* validation */
     const validate = (): FormErrors => {
-        const errs: FormErrors = {};
-        const { email, name, phone } = formData;
+        const e: FormErrors = {};
+        const { email, name, phone } = data;
 
-        if (!name.trim()) errs.name = 'Имя обязательно';
-        if (!email.trim()) errs.email = 'Адрес электронной почты обязателен';
+        if (!name.trim()) e.name = 'Название обязательно';
+        if (!email.trim()) e.email = 'E-mail обязателен';
+        if (!phone.trim()) e.phone = 'Телефон обязателен';
+        else if (!/^\+\d{5,15}$/.test(phone))
+            e.phone = 'Формат: + и 5–15 цифр';
 
-        if (!phone.trim()) {
-            errs.phone = 'Телефон обязателен';
-        } else if (!/^\+\d{5,15}$/.test(phone)) {
-            errs.phone = 'Телефон должен начинаться с + и содержать 5–15 цифр';
-        }
-
-        return errs;
+        return e;
     };
 
-    const handleChange = (field: string, value: string | number) => {
-        setErrors(prev => ({ ...prev, [field]: undefined }));
+    /* field change */
+    const onField = (field: keyof typeof initialForm, value: string) => {
+        setErrors(p => ({ ...p, [field]: undefined }));
         setServerError(null);
-
-        setFormData(prev => ({
-            ...prev,
-            [field]: value
-        }));
+        setData(d => ({ ...d, [field]: value }));
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    /* submit */
+    const onSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setServerError(null);
-
-        const validationErrors = validate();
-        setErrors(validationErrors);
-        if (Object.keys(validationErrors).length) return;
+        const eMap = validate();
+        setErrors(eMap);
+        if (Object.keys(eMap).length) return;
 
         try {
-            if (isEditMode && currentId !== null) {
-                const instituteToUpdate: Institute = { id: currentId, ...formData };
-                await dispatch(updateInstitute(instituteToUpdate)).unwrap();
+            if (isEdit && instituteId !== null) {
+                await dispatch(updateInstitute({ id: instituteId, ...data })).unwrap();
             } else {
-                await dispatch(createInstitute(formData)).unwrap();
+                await dispatch(createInstitute(data)).unwrap();
             }
             navigate('/institutes');
-        } catch (err: any) {
-            const msg = err as string;
-            setServerError(msg || 'Неизвестная ошибка');
-            console.error('Ошибка сохранения института:', err);
+        } catch (err) {
+            setServerError(getMsg(err));
         }
     };
 
-    // Открыть диалог удаления
-    const openDeleteDialog = () => {
-        setDeleteError(null);
-        setIsDeleteDialogOpen(true);
-    };
-
-    // Закрыть диалог удаления
-    const closeDeleteDialog = () => {
-        setIsDeleteDialogOpen(false);
-    };
-
-    // Подтверждение удаления
-    const handleDelete = async () => {
-        if (currentId === null) return;
-        setDeleteError(null);
+    /* delete */
+    const onDelete = async () => {
+        if (instituteId === null) return;
         try {
-            await dispatch(deleteInstitute(currentId)).unwrap();
+            await dispatch(deleteInstitute(instituteId)).unwrap();
             navigate('/institutes');
-        } catch (err: any) {
-            const msg = err as string;
-            setDeleteError(msg || 'Ошибка при удалении института');
-            console.error('Ошибка удаления института:', err);
+        } catch (err) {
+            setDeleteError(getMsg(err));
         }
     };
 
-    if (isEditMode && status === 'loading') {
+    /* loader */
+    if (isEdit && status === 'loading') {
         return (
-            <Box display="flex" justifyContent="center" mt={4}>
-                <CircularProgress />
+            <Box display="flex" justifyContent="center" mt={8}>
+                <CircularProgress size={48} />
             </Box>
         );
     }
 
+    /* render */
     return (
-        <Container maxWidth="sm">
-            <Box mt={4}>
-                <Typography variant="h5" gutterBottom>
-                    {isEditMode ? 'Редактировать института' : 'Создать институт'}
-                </Typography>
+        <AnimatedFormShell
+            title={isEdit ? 'Редактировать институт' : 'Создать институт'}
+        >
+            <Box component="form" onSubmit={onSubmit}>
+                <TextField
+                    label="Название"
+                    value={data.name}
+                    fullWidth
+                    margin="normal"
+                    error={!!errors.name}
+                    helperText={errors.name}
+                    onChange={e => onField('name', e.target.value)}
+                />
 
-                <form onSubmit={handleSubmit} noValidate>
-                    {/* Все поля формы */}
-                    <TextField
-                        label="Адрес электронной почты"
-                        value={formData.email}
-                        fullWidth
-                        margin="normal"
-                        onChange={e => handleChange('email', e.target.value)}
-                        error={!!errors.email}
-                        helperText={errors.email}
-                    />
+                <TextField
+                    label="E-mail"
+                    value={data.email}
+                    fullWidth
+                    margin="normal"
+                    error={!!errors.email}
+                    helperText={errors.email}
+                    onChange={e => onField('email', e.target.value)}
+                />
 
-                    <TextField
-                        label="Название"
-                        value={formData.name}
-                        fullWidth
-                        margin="normal"
-                        onChange={e => handleChange('name', e.target.value)}
-                        error={!!errors.name}
-                        helperText={errors.name}
-                    />
+                <TextField
+                    label="Телефон"
+                    value={data.phone}
+                    fullWidth
+                    margin="normal"
+                    error={!!errors.phone}
+                    helperText={errors.phone}
+                    onChange={e => onField('phone', e.target.value)}
+                />
 
-                    <TextField
-                        label="Телефон"
-                        value={formData.phone}
-                        fullWidth
-                        margin="normal"
-                        onChange={e => handleChange('phone', e.target.value)}
-                        error={!!errors.phone}
-                        helperText={errors.phone}
-                    />
+                {serverError && (
+                    <Alert severity="error" sx={{ mt: 2 }}>
+                        {serverError}
+                    </Alert>
+                )}
 
-                    <Box mt={2} display="flex" justifyContent="space-between">
-                        {isEditMode && (
-                            <Button
-                                variant="outlined"
-                                color="error"
-                                onClick={openDeleteDialog}
-                            >
-                                Удалить
-                            </Button>
-                        )}
-                        <Button type="submit" variant="contained" color="primary">
-                            {isEditMode ? 'Сохранить' : 'Создать'}
-                        </Button>
-                    </Box>
-
-                    {serverError && (
-                        <Typography color="error" mt={1}>
-                            {serverError}
-                        </Typography>
-                    )}
-                </form>
-
-                {/* Модальное окно подтверждения удаления */}
-                <Dialog
-                    open={isDeleteDialogOpen}
-                    onClose={closeDeleteDialog}
-                    aria-labelledby="delete-dialog-title"
-                    aria-describedby="delete-dialog-description"
-                >
-                    <DialogTitle id="delete-dialog-title">Подтвердите удаление</DialogTitle>
-                    <DialogContent>
-                        <DialogContentText id="delete-dialog-description">
-                            Вы уверены, что хотите удалить институт? Это действие нельзя будет отменить.
-                        </DialogContentText>
-                        {deleteError && (
-                            <Typography color="error" mt={1}>
-                                {deleteError}
-                            </Typography>
-                        )}
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={closeDeleteDialog}>Отмена</Button>
-                        <Button onClick={handleDelete} color="error" variant="contained" autoFocus>
+                <Box display="flex" justifyContent="space-between" mt={3}>
+                    {isEdit && (
+                        <Button
+                            variant="outlined"
+                            color="error"
+                            onClick={() => setConfirmDeleteOpen(true)}
+                        >
                             Удалить
                         </Button>
-                    </DialogActions>
-                </Dialog>
+                    )}
+                    <Button type="submit" variant="contained">
+                        {isEdit ? 'Сохранить' : 'Создать'}
+                    </Button>
+                </Box>
             </Box>
-        </Container>
+
+            {/* delete confirmation dialog */}
+            <Dialog
+                open={confirmDeleteOpen}
+                onClose={() => setConfirmDeleteOpen(false)}
+            >
+                <DialogTitle>Подтвердите удаление</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        Вы уверены, что хотите удалить этот институт? Это действие
+                        необратимо.
+                    </DialogContentText>
+                    {deleteError && (
+                        <Alert severity="error" sx={{ mt: 2 }}>
+                            {deleteError}
+                        </Alert>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setConfirmDeleteOpen(false)}>Отмена</Button>
+                    <Button variant="contained" color="error" onClick={onDelete}>
+                        Удалить
+                    </Button>
+                </DialogActions>
+            </Dialog>
+        </AnimatedFormShell>
     );
 };
 
